@@ -37,6 +37,14 @@ void showfast(Mat& img,
               Mat& out,
               vector<KeyPoint> &pts);
 
+void showhog(Mat& img,
+              Mat& out,
+              vector<float> &pts);
+
+int comparehog(vector<float> &pts);
+
+
+
 #ifdef __cplusplus
 }
 #endif
