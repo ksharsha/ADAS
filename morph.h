@@ -34,6 +34,8 @@ extern "C" {
     void FindBlobs(const Mat &binary,Mat &labels, vector < vector<Point2i> > &blobs);
     
     void extractwindowsrefined(Mat& img,Mat& blob, Mat& out, vector<Point2f> *points, vector < vector<Point2i> > &blobs);
+    void extractstaticwindowsrefined(Mat& img,Mat& diff,Mat& blob, Mat& out, vector<Point2f> *points, vector < vector<Point2i> > &blobs);
+    void extractwindowsclose(Mat& img,Mat &blob, Mat& out, vector<Point2f> *points, vector < vector<Point2i> > &blobs);
     
 #ifdef __cplusplus
 }
