@@ -14,10 +14,13 @@
 using namespace cv;
 using namespace std;
 
-#define dense 0 //set this to one if we want to compute dense correspondences
+#define dense 2 //set this to one if we want to compute dense correspondences
 #define savevideo 1//set this to one if we want to write the output to a video file
 #define calcfeat 1//set this to one if we want to calculate features in every frame
+#define debugon 0//Sets some print statements enabling debug
 vector<Mat> HogFeats;//Global variable for storing the computed HOG features of 200 road images
+
+//extern Rect Rect2;//In this window we have to detect the static object as well.
 
 void init()
 {
@@ -49,7 +52,7 @@ int main( int argc, char** argv )
     vector<Point2f> points[2];
     vector<uchar> status;
     vector<float> err;
-    Mat prv,next, flow, colflow,imsparse ,colim, diff;
+    Mat prv,next, flow, colflow,imsparse ,colim, diff,prvmul;
     Mat binimg;//Used for storing the binary images
     Mat featimg;//Used for getting the features
     Mat winimg;//img containing the rectangles
@@ -61,7 +64,7 @@ int main( int argc, char** argv )
     int i=0;
     /*Initializing our system first*/
     init();
-    VideoCapture cap("../../../Desktop/Harsha/CMU/SurroundView/MovingObjectDetection/5.mp4");
+    VideoCapture cap("../../../Desktop/Harsha/CMU/SurroundView/MovingObjectDetection/4.mp4");
     Size S = Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH),    
               (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT));//Input Size
     VideoWriter outputVideo;
@@ -69,9 +72,9 @@ int main( int argc, char** argv )
     if(savevideo)
     {
         if(dense)
-            outputVideo.open("outdense4.avi" , 1, cap.get(CV_CAP_PROP_FPS),S, true);
+            outputVideo.open("Track4statmov.avi" , CV_FOURCC('M','J','P','G'), cap.get(CV_CAP_PROP_FPS),S, true);
         else
-            outputVideo.open("outsparserefinedhog.avi" , 1, cap.get(CV_CAP_PROP_FPS),S, true);
+            outputVideo.open("StatMov5.avi" , 1, cap.get(CV_CAP_PROP_FPS),S, true);
         //Reading the first frame from the video into the previous frame
         if (!outputVideo.isOpened())
         {
@@ -83,7 +86,7 @@ int main( int argc, char** argv )
         return 0;
     cvtColor(prv, prv, CV_BGR2GRAY);
     threshold(prv, binimg, 100, 0, THRESH_BINARY);
-    cout<<"The frame size is "<<prv.size()<<prv.rows<<prv.cols<<endl;
+    //cout<<"The frame size is "<<prv.size()<<prv.rows<<prv.cols<<endl;
     //Computing the features to track at the beginning itself
     goodFeaturesToTrack(prv, points[0], MAX_COUNT, 0.01, 10, Mat(), 3, 0, 0.04);
     
@@ -96,8 +99,8 @@ int main( int argc, char** argv )
         colim=next.clone();
         cvtColor(next, next, CV_BGR2GRAY);
         diff=abs(next-prv);
-        imshow("Difference",diff);
-        
+        //imshow("Difference",diff);
+#if dense==0        
         threshold(diff, binimg, 50, 1, THRESH_BINARY);//Will have very low
         //threshold because already it is difference of images
         //imshow("BinaryImage", binimg);
@@ -127,7 +130,7 @@ int main( int argc, char** argv )
         extractwindowsrefined(next,blobimg,winimg,points,blobs);
         //extractwindows(next,winimg,points);
         imshow("WindowsImage",winimg);
-#if dense==0
+
         calcOpticalFlowPyrLK(
         prv, next, // 2 consecutive images
         points[0], // input point positions in first im
@@ -150,8 +153,91 @@ int main( int argc, char** argv )
         calcOpticalFlowFarneback(prv, next, flow, 0.5, 1, 5, 3, 5, 1.2, 0);
         cvtColor(prv, colflow, CV_GRAY2BGR);
         drawOptFlowMap(flow, colflow, 20, CV_RGB(0, 255, 0));
+        cout<<colflow.size()<<endl;      
+        findobst(flow, colflow);
         imshow("DenseFlow",colflow);
         outputVideo.write(colflow);
+        if (waitKey(5) >= 0) 
+            break;
+#endif
+#if dense==2
+        threshold(diff, binimg, 200, 255, THRESH_BINARY);
+        //imshow("Binary Image",binimg);
+        if(debugon)
+            cout<<"Calculated Binary image"<<endl;
+        
+        prvmul=prv.mul(binimg);
+        if(debugon)
+            cout<<"Completed element wise multiplication"<<endl;
+        //imshow("PreviousImage",prv);
+        showorb(prvmul, featimg,feats);//Computing features on the diff of images.
+        points[0].clear();
+        points[1].clear();
+        for(i=0;i<feats.size();i++)
+        {
+            points[0].push_back(Point2f(feats[i].pt.x,feats[i].pt.y));
+        }
+        if(debugon)
+        {
+            cout<<"Computed ORB features"<<prv.size()<<" "<<next.size()<<endl;
+            cout<<points[0].size()<<" "<<points[1].size()<<endl;
+            cout<<"The size of the images passed are"<<prv.size()<<" "<<next.size()<<endl;
+        }
+        if(points[0].size()>0)
+        {
+            calcOpticalFlowPyrLK(
+            prv, next, // 2 consecutive images
+            points[0], // input point positions in first im
+            points[1], // output point positions in the 2nd
+            status,    // tracking success
+            err      // tracking error
+            );
+            if(debugon)
+                cout<<"Computed sparse optical flow features"<<endl;
+            drawoptflowsparse(prv,colim,imsparse,points,status,err);
+            findobst(prv, imsparse,imsparse,points,status,err);
+            //findstatobst(diff,next);
+            imshow("SparseFlow",imsparse);
+            if(debugon)
+                cout<<"Located obstacles"<<endl;
+            
+            if(debugon)
+                cout<<"Wrote into the video"<<endl;
+            //swap(points[1], points[0]);
+        }
+        
+        /*
+         We will now detect the static objects in the images
+         */
+        showorb(next, featimg,feats);//Computing features on the diff of images.
+        points[0].clear();
+        points[1].clear();
+        for(i=0;i<feats.size();i++)
+        {
+            points[0].push_back(Point2f(feats[i].pt.x,feats[i].pt.y));
+        }
+        if(points[0].size()>0)
+        {
+            calcOpticalFlowPyrLK(
+            prv, next, // 2 consecutive images
+            points[0], // input point positions in first im
+            points[1], // output point positions in the 2nd
+            status,    // tracking success
+            err      // tracking error
+            );
+            if(debugon)
+                cout<<"Computed sparse optical flow features"<<endl;
+            //drawoptflowsparse(prv,colim,imsparse,points,status,err);
+            findstaticobst(prv, colim,imsparse,points,status,err);
+            imshow("StaticObjects",imsparse);
+            if(debugon)
+                cout<<"Located obstacles"<<endl;
+            if(debugon)
+                cout<<"Wrote into the video"<<endl;
+            //swap(points[1], points[0]);
+        }
+        if(savevideo)
+            outputVideo.write(imsparse);
         if (waitKey(5) >= 0) 
             break;
 #endif
