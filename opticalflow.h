@@ -22,7 +22,11 @@ extern "C" {
 #endif
 
 void drawOptFlowMap (const Mat& flow, Mat& cflowmap, int step, const Scalar& color);
-void drawoptflowsparse(Mat& prv,Mat& next,Mat& imsparse,vector<Point2f> *points);
+void drawoptflowsparse(Mat& prv,Mat& next,Mat& imsparse,vector<Point2f> *points,vector<uchar> &status,vector<float> err);
+void findobst(Mat& flow, Mat& cflowmap,Mat& imsparse,vector<Point2f> *points,vector<uchar> &status,vector<float> err);
+void findstatobst(Mat& diff,Mat& next);
+void findstaticobst(Mat& flow, Mat& cflowmap,Mat& imsparse,vector<Point2f> *points,vector<uchar> &status,vector<float> err);
+
 
 
 
